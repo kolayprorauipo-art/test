@@ -1,21 +1,76 @@
 name: Build iOS IPA
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
-  build:
-    name: Build iOS IPA for TrollStore
-    runs-on: macos-latest
+  export-xcode:
+    name: Export Xcode Project (Unity Editor)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Test Runner
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-ios-${{ hashFiles('Assets/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-ios-
+            Library-
+
+      - name: Build project with GameCI
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: iOS
+          unityVersion: 2022.3.62f2
+          buildMethod: BuildScript.BuildIOS
+
+      - name: Upload Xcode Project Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-project
+          path: Builds/iOS
+
+  compile-ipa:
+    name: Compile IPA via Xcode (macOS Apple Silicon)
+    needs: export-xcode
+    runs-on: macos-latest
+    steps:
+      - name: Download Xcode Project Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: xcode-project
+          path: Builds/iOS
+
+      - name: Compile and Package IPA for TrollStore
         run: |
-          echo "Runner is active: $(uname -a)"
-          xcodebuild -version
+          cd Builds/iOS
+          xcodebuild -project Unity-iPhone.xcodeproj \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+          mkdir -p Payload
+          APP_PATH=$(find build/Release-iphoneos -name "*.app" -maxdepth 1 | head -n 1)
+          cp -r "$APP_PATH" Payload/
+          zip -r Granny_Mod_Pack_TrollStore.ipa Payload
+
+      - name: Upload Finished IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Granny_Mod_Pack_TrollStore_IPA
+          path: Builds/iOS/Granny_Mod_Pack_TrollStore.ipa
