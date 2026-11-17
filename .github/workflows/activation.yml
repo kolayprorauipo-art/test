@@ -1,22 +1,37 @@
-name: Acquire Unity Activation File
+name: Online Unity Personal Activation
 
 on:
   workflow_dispatch:
 
 jobs:
-  activation:
-    name: Generate Unity ALF via Docker
+  activate-online:
+    name: Online Personal License Activation
     runs-on: ubuntu-latest
     container:
       image: unityci/editor:2022.3.62f2-base-3
     steps:
-      - name: Generate ALF
+      - name: Activate Unity Online
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
         run: |
-          /opt/unity/Editor/Unity -batchmode -nographics -createManualActivationFile
-          ls -lh *.alf || find / -name "*.alf" 2>/dev/null || true
+          echo "Attempting online activation for $UNITY_EMAIL..."
+          /opt/unity/Editor/Unity -batchmode -nographics -silent-crashes \
+            -username "$UNITY_EMAIL" \
+            -password "$UNITY_PASSWORD" \
+            -quit || true
 
-      - name: Expose as artifact
+          echo "Searching for generated .ulf file..."
+          find / -name "*.ulf" 2>/dev/null || true
+          
+          ULF_PATH=$(find / -name "Unity_lic.ulf" 2>/dev/null | head -n 1)
+          if [ -n "$ULF_PATH" ]; then
+            echo "Found license at $ULF_PATH"
+            cp "$ULF_PATH" ./Unity_lic.ulf
+          fi
+
+      - name: Upload ULF License
         uses: actions/upload-artifact@v4
         with:
-          name: UnityActivationFile
-          path: "*.alf"
+          name: UnityLicenseFile
+          path: Unity_lic.ulf
