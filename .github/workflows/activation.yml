@@ -5,15 +5,18 @@ on:
 
 jobs:
   activation:
-    name: Request manual activation file
+    name: Generate Unity ALF via Docker
     runs-on: ubuntu-latest
+    container:
+      image: unityci/editor:2022.3.62f2-base-3
     steps:
-      - name: Request manual activation file
-        id: getManualLicenseFile
-        uses: game-ci/unity-request-activation-file@v2
+      - name: Generate ALF
+        run: |
+          /opt/unity/Editor/Unity -batchmode -nographics -createManualActivationFile
+          ls -lh *.alf || find / -name "*.alf" 2>/dev/null || true
 
       - name: Expose as artifact
         uses: actions/upload-artifact@v4
         with:
           name: UnityActivationFile
-          path: ${{ steps.getManualLicenseFile.outputs.filePath }}
+          path: "*.alf"
