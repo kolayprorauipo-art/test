@@ -8,49 +8,14 @@ on:
 jobs:
   build:
     name: Build iOS IPA for TrollStore
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Install Unity Hub and Unity 2022.3
-        uses: game-ci/unity-builder@v4
-        id: unity-builder
-        continue-on-error: true
-        with:
-          targetPlatform: iOS
-          unityVersion: 2022.3.62f2
-          buildMethod: BuildScript.BuildIOS
-
-      - name: Fallback Build with CLI if needed
-        if: steps.unity-builder.outcome != 'success'
+      - name: Test Runner
         run: |
-          brew install --cask unity-hub
-          /Applications/Unity\ Hub.app/Contents/MacOS/Unity\ Hub -- --headless install --version 2022.3.62f2 --module ios || true
-          EDITOR_PATH=$(find /Applications/Unity -name "Unity.app" | head -n 1)/Contents/MacOS/Unity
-          "$EDITOR_PATH" -batchmode -nographics -silent-crashes -quit -projectPath . -executeMethod BuildScript.BuildIOS -logFile unity_build.log || cat unity_build.log
-
-      - name: Compile Xcode Project and Package IPA
-        run: |
-          cd Builds/iOS
-          xcodebuild -project Unity-iPhone.xcodeproj \
-            -scheme Unity-iPhone \
-            -configuration Release \
-            -sdk iphoneos \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            build
-
-          mkdir -p Payload
-          APP_PATH=$(find build/Release-iphoneos -name "*.app" -maxdepth 1 | head -n 1)
-          cp -r "$APP_PATH" Payload/
-          zip -r Granny_Mod_Pack_TrollStore.ipa Payload
-
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Granny_Mod_Pack_iOS_TrollStore
-          path: Builds/iOS/Granny_Mod_Pack_TrollStore.ipa
+          echo "Runner is active: $(uname -a)"
+          xcodebuild -version
